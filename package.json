@@ -8,11 +8,12 @@
 		"dev:worker": "wrangler dev --local --port 8787",
 		"build": "vite build",
 		"preview": "vite preview",
-		"check": "npm run format:check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.worker.json --noEmit",
+		"check": "npm run format:check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.worker.json --noEmit && npm test",
 		"format": "biome check --write .",
 		"format:check": "biome check .",
 		"deploy:pages": "npm run build && wrangler pages deploy build --project-name daihugou",
-		"deploy:worker": "wrangler deploy"
+		"deploy:worker": "wrangler deploy",
+		"test": "vitest run"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
@@ -26,7 +27,8 @@
 		"svelte-check": "^4.4.6",
 		"typescript": "^6.0.2",
 		"vite": "^8.0.7",
-		"wrangler": "^4.92.0"
+		"wrangler": "^4.92.0",
+		"vitest": "^4.1.6"
 	},
 	"dependencies": {
 		"clsx": "^2.1.1",

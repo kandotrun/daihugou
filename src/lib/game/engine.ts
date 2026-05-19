@@ -333,11 +333,8 @@ function applyRuleEffects(state: RoomState, combination: Combination) {
 
 function advanceTurn(state: RoomState, currentPlayerId: string, combination: Combination) {
 	if (state.phase === 'finished') return;
-	if (!state.pile) {
-		state.turnPlayerId = nextActiveAfter(state, currentPlayerId);
-		return;
-	}
-	const skipCount = state.rules.skip5 && combination.containsRank[5] ? 2 : 1;
+	if (!state.pile) return;
+	const skipCount = state.rules.skip5 && combination.containsRank[5] ? combination.count + 1 : 1;
 	if (skipCount > 1) pushLog(state, '5飛ばしで次の人をスキップしました');
 	state.turnPlayerId = nextActiveAfter(state, currentPlayerId, skipCount);
 }
