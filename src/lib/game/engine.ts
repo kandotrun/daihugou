@@ -110,7 +110,7 @@ export function updateRules(state: RoomState, rules: Partial<RuleSettings>) {
 
 export function joinRoom(state: RoomState, name: string, requestedPlayerId?: string): Player {
 	migrateState(state);
-	const trimmed = name.trim().slice(0, 24) || '名無し';
+	const trimmed = name.trim().slice(0, 24).trim() || '名無し';
 	const returning = requestedPlayerId
 		? state.players.find((player) => player.id === requestedPlayerId)
 		: undefined;

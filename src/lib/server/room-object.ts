@@ -10,8 +10,8 @@ import {
 	startGame,
 	toPublicState,
 	updateRules,
-} from '$lib/game/engine';
-import type { ClientCommand, RoomState, ServerEvent } from '$lib/game/types';
+} from '../game/engine';
+import type { ClientCommand, RoomState, ServerEvent } from '../game/types';
 
 type Connection = {
 	ws: WebSocket;

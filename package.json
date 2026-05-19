@@ -7,12 +7,13 @@
 		"dev": "vite dev",
 		"dev:worker": "wrangler dev --local --port 8787",
 		"build": "vite build",
+		"ci": "npm run check && npm run build && npm run deploy:worker -- --dry-run --outdir .wrangler/dry-run",
 		"preview": "vite preview",
 		"check": "npm run format:check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.worker.json --noEmit && npm test",
 		"format": "biome check --write .",
 		"format:check": "biome check .",
 		"deploy:pages": "npm run build && wrangler pages deploy build --project-name daihugou",
-		"deploy:worker": "wrangler deploy",
+		"deploy:worker": "svelte-kit sync && wrangler deploy",
 		"test": "vitest run"
 	},
 	"devDependencies": {
