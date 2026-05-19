@@ -87,8 +87,9 @@ export function toPublicState(state: RoomState, viewerId?: string): PublicRoomSt
 	const handCounts = Object.fromEntries(
 		state.players.map((player) => [player.id, state.hands[player.id]?.length ?? 0]),
 	);
+	const { hands: _privateHands, ...publicState } = state;
 	return {
-		...state,
+		...publicState,
 		handCounts,
 		me: viewerId
 			? {
@@ -189,13 +190,13 @@ export function playCards(state: RoomState, playerId: string, cardIds: string[])
 	state.passes = [];
 	const player = state.players.find((candidate) => candidate.id === playerId);
 	pushLog(state, `${player?.name ?? '誰か'} が ${selected.map(cardLabel).join(' ')} を出しました`);
-	applyRuleEffects(state, validation.combination);
 	if (state.hands[playerId].length === 0 && !state.winners.includes(playerId)) {
 		state.winners.push(playerId);
 		const finisher = state.players.find((candidate) => candidate.id === playerId);
 		if (finisher) finisher.finishedAt = Date.now();
 		pushLog(state, `${finisher?.name ?? '誰か'} が上がりました`);
 	}
+	applyRuleEffects(state, validation.combination);
 	advanceTurn(state, playerId, validation.combination);
 	state.updatedAt = Date.now();
 }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createRoom, defaultRules, joinRoom, passTurn, playCards, updateRules } from './engine';
+import {
+	createRoom,
+	defaultRules,
+	joinRoom,
+	passTurn,
+	playCards,
+	toPublicState,
+	updateRules,
+} from './engine';
 import type { Card, Rank, RoomState, RuleSettings, Suit } from './types';
 
 const card = (rank: Rank, suit: Suit = 'spades'): Card => ({
@@ -41,6 +49,25 @@ describe('configurable Daifugō rules', () => {
 		expect(state.rules.sequence).toBe(true);
 		state.phase = 'playing';
 		expect(() => updateRules(state, { eightCut: true })).toThrow(/開始前/);
+	});
+
+	it('only exposes the viewer hand in public state', () => {
+		const state = room({ p1: [card(3), card(4)], p2: [card(10), card(11)] });
+		const publicState = toPublicState(state, 'p1');
+
+		expect('hands' in publicState).toBe(false);
+		expect(publicState.handCounts).toEqual({ p1: 2, p2: 2 });
+		expect(publicState.me?.hand.map((ownedCard) => ownedCard.id)).toEqual(['spades-3', 'spades-4']);
+		expect(JSON.stringify(publicState)).not.toContain('spades-10');
+	});
+
+	it('records a player finishing with an eight cut before ending the game', () => {
+		const state = room({ p1: [card(8)], p2: [card(9)] }, { forbiddenFinish: false });
+
+		playCards(state, 'p1', ['spades-8']);
+
+		expect(state.phase).toBe('finished');
+		expect(state.winners).toEqual(['p1', 'p2']);
 	});
 
 	it('applies eight cut, revolution, sequence, suit lock, eleven back, skip, reverse, spade three, and forbidden finish', () => {
