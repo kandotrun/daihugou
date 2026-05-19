@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { cardLabel, createDeck, JOKER_RANK, shuffle, sortHand, suitMarks } from './cards';
 import type {
 	Card,
 	Combination,
@@ -10,25 +11,7 @@ import type {
 	Suit,
 } from './types';
 
-const SUITS: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
-const RANKS: Rank[] = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-const JOKER_RANK = 16;
-const RANK_LABELS: Record<Rank, string> = {
-	3: '3',
-	4: '4',
-	5: '5',
-	6: '6',
-	7: '7',
-	8: '8',
-	9: '9',
-	10: '10',
-	11: 'J',
-	12: 'Q',
-	13: 'K',
-	14: 'A',
-	15: '2',
-	16: 'Joker',
-};
+export { cardLabel, sortHand, suitMarks };
 
 export const defaultRules: RuleSettings = {
 	sequence: true,
@@ -52,14 +35,6 @@ export const ruleDescriptions: Record<keyof RuleSettings, string> = {
 	forbiddenFinish: '反則上がり（Joker/2/8/Jなどで上がれない）',
 	skip5: '5飛ばし（5を含む手で次の人を飛ばす）',
 	reverse9: '9リバース（9を含む手で順番を反転）',
-};
-
-export const suitMarks: Record<Suit, string> = {
-	spades: '♠',
-	hearts: '♥',
-	diamonds: '♦',
-	clubs: '♣',
-	joker: '🃏',
 };
 
 export function createRoom(id = nanoid(8)): RoomState {
@@ -230,16 +205,6 @@ export function resetRoom(state: RoomState) {
 	pushLog(state, '新しいラウンド待機に戻しました');
 }
 
-export function cardLabel(card: Card) {
-	return card.suit === 'joker' ? 'Joker' : `${suitMarks[card.suit]}${RANK_LABELS[card.rank]}`;
-}
-
-export function sortHand(cards: Card[]) {
-	return [...cards].sort(
-		(a, b) => a.rank - b.rank || a.suit.localeCompare(b.suit) || a.deck - b.deck,
-	);
-}
-
 function validatePlay(
 	state: RoomState,
 	selected: Card[],
@@ -405,46 +370,6 @@ function isForbiddenFinish(state: RoomState, selected: Card[], combination: Comb
 		(state.rules.elevenBack && combination.containsRank[11]) ||
 		isSpade3JokerCounter(selected, state.pile?.cards ?? [])
 	);
-}
-
-function createDeck(decks: number): Card[] {
-	const cards: Card[] = [];
-	for (let deck = 1; deck <= decks; deck += 1) {
-		for (const suit of SUITS) {
-			for (const rank of RANKS)
-				cards.push({
-					id: `${deck}-${suit}-${rank}-${nanoid(4)}`,
-					suit,
-					rank,
-					label: RANK_LABELS[rank],
-					deck,
-				});
-		}
-		cards.push({
-			id: `${deck}-joker-black-${nanoid(4)}`,
-			suit: 'joker',
-			rank: JOKER_RANK,
-			label: 'Joker',
-			deck,
-		});
-		cards.push({
-			id: `${deck}-joker-red-${nanoid(4)}`,
-			suit: 'joker',
-			rank: JOKER_RANK,
-			label: 'Joker',
-			deck,
-		});
-	}
-	return cards;
-}
-
-function shuffle<T>(items: T[]): T[] {
-	const copy = [...items];
-	for (let i = copy.length - 1; i > 0; i -= 1) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[copy[i], copy[j]] = [copy[j], copy[i]];
-	}
-	return copy;
 }
 
 function findStartingPlayer(state: RoomState) {
