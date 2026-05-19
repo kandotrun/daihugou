@@ -1,7 +1,7 @@
 <script lang="ts">
 import { connectRoom, createRoom, setApiBase } from '$lib/game/client';
-import { cardLabel } from '$lib/game/engine';
-import type { Card, PublicRoomState } from '$lib/game/types';
+import { cardLabel, ruleDescriptions } from '$lib/game/engine';
+import type { Card, PublicRoomState, RuleSettings } from '$lib/game/types';
 
 let name = 'Player';
 let roomId = '';
@@ -15,6 +15,11 @@ let client: ReturnType<typeof connectRoom> | undefined;
 const isMyTurn = () => state?.turnPlayerId === playerId;
 const me = () => state?.players.find((player) => player.id === playerId);
 const currentPlayer = () => state?.players.find((player) => player.id === state?.turnPlayerId);
+const ruleEntries = Object.entries(ruleDescriptions) as [keyof RuleSettings, string][];
+
+function setRule(key: keyof RuleSettings, checked: boolean) {
+	client?.send({ type: 'updateRules', rules: { [key]: checked } });
+}
 
 async function handleCreateRoom() {
 	error = '';
@@ -111,7 +116,10 @@ function pass() {
 						<span>{state.phase}</span>
 						<span>{state.players.length}人</span>
 						<span>{state.decks} deck</span>
+						<span>{state.turnDirection === 1 ? '時計回り' : '反時計回り'}</span>
 						{#if state.revolution}<span class="danger">革命中</span>{/if}
+						{#if state.jackBack}<span class="danger">11バック</span>{/if}
+						{#if state.pile?.lockSuits.length}<span class="danger">縛り {state.pile.lockSuits.map((suit) => ({ spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣', joker: '🃏' })[suit]).join('')}</span>{/if}
 					</div>
 				</div>
 
@@ -153,6 +161,29 @@ function pass() {
 					</div>
 				{/each}
 			</aside>
+		</section>
+
+		<section class="panel rules-panel">
+			<div class="statusbar">
+				<div>
+					<p class="muted">Rule toggles</p>
+					<h2>大富豪ルール設定</h2>
+				</div>
+				<p>{state.phase === 'lobby' ? '開始前のみ変更できます' : '進行中は固定'}</p>
+			</div>
+			<div class="rule-grid">
+				{#each ruleEntries as [key, label]}
+					<label class="rule-toggle">
+						<input
+							type="checkbox"
+							checked={state.rules[key]}
+							disabled={state.phase !== 'lobby'}
+							on:change={(event) => setRule(key, event.currentTarget.checked)}
+						/>
+						<span>{label}</span>
+					</label>
+				{/each}
+			</div>
 		</section>
 
 		<section class="panel hand-panel">
@@ -216,7 +247,11 @@ function pass() {
 	.player-row p { margin: 2px 0 0; color: #94a3b8; font-size: 13px; }
 	.player-row.active { border-color: rgba(56,189,248,.7); box-shadow: 0 0 0 1px rgba(56,189,248,.2); }
 	.player-row.me { background: rgba(34,197,94,.08); }
-	.hand-panel, .log { margin-top: 20px; }
+	.hand-panel, .log, .rules-panel { margin-top: 20px; }
+	.rule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 18px; }
+	.rule-toggle { display: flex; grid-template-columns: none; align-items: center; gap: 10px; border: 1px solid rgba(148,163,184,.14); border-radius: 16px; padding: 12px; }
+	.rule-toggle input { width: auto; accent-color: #22c55e; }
+	.rule-toggle span { color: #e2e8f0; }
 	.hand { padding-top: 20px; min-height: 130px; }
 	.log { max-height: 320px; overflow: auto; }
 	.log p { color: #cbd5e1; border-bottom: 1px solid rgba(148,163,184,.1); padding-bottom: 8px; }
