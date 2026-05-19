@@ -1,0 +1,32 @@
+{
+  "name": "daihugou",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:worker": "wrangler dev",
+    "build": "npm run typecheck && vite build && esbuild src/worker.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/worker/index.js",
+    "check": "biome check . && npm run typecheck && npm test -- --run && npm run build",
+    "format": "biome check --write .",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router": "latest"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "latest",
+    "@cloudflare/workers-types": "latest",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "esbuild": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest",
+    "wrangler": "latest"
+  }
+}
