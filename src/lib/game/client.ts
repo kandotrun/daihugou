@@ -35,8 +35,9 @@ export function connectRoom(args: {
 	roomId: string;
 	name: string;
 	playerId?: string;
+	token?: string;
 	onState: (state: PublicRoomState) => void;
-	onJoined: (playerId: string) => void;
+	onJoined: (playerId: string, token: string) => void;
 	onError: (message: string) => void;
 }): RoomClient {
 	const base = apiBase();
@@ -45,12 +46,17 @@ export function connectRoom(args: {
 	url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
 	url.searchParams.set('name', args.name);
 	if (args.playerId) url.searchParams.set('playerId', args.playerId);
+	if (args.token) url.searchParams.set('token', args.token);
 	const ws = new WebSocket(url);
 	ws.addEventListener('message', (event) => {
-		const message = JSON.parse(event.data) as ServerEvent;
-		if (message.type === 'state') args.onState(message.state);
-		if (message.type === 'joined') args.onJoined(message.playerId);
-		if (message.type === 'error') args.onError(message.message);
+		try {
+			const message = parseServerEvent(event.data);
+			if (message.type === 'state') args.onState(message.state);
+			if (message.type === 'joined') args.onJoined(message.playerId, message.token);
+			if (message.type === 'error') args.onError(message.message);
+		} catch {
+			args.onError('サーバーから不正なデータを受信しました');
+		}
 	});
 	ws.addEventListener('error', () => args.onError('WebSocket接続でエラーが発生しました'));
 	return {
@@ -61,4 +67,27 @@ export function connectRoom(args: {
 			ws.close();
 		},
 	};
+}
+
+function parseServerEvent(data: string): ServerEvent {
+	const parsed = JSON.parse(data) as unknown;
+	if (!isServerEvent(parsed)) throw new Error('Invalid server event');
+	return parsed;
+}
+
+function isServerEvent(value: unknown): value is ServerEvent {
+	if (!isRecord(value) || typeof value.type !== 'string') return false;
+	if (value.type === 'error') return typeof value.message === 'string';
+	if (value.type === 'joined') {
+		return (
+			typeof value.playerId === 'string' &&
+			typeof value.token === 'string' &&
+			typeof value.roomId === 'string'
+		);
+	}
+	return value.type === 'state' && isRecord(value.state);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
 }
