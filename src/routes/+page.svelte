@@ -5,7 +5,7 @@ import JoinPanel from '$lib/components/JoinPanel.svelte';
 import PlayersPanel from '$lib/components/PlayersPanel.svelte';
 import RuleSettingsPanel from '$lib/components/RuleSettingsPanel.svelte';
 import TablePanel from '$lib/components/TablePanel.svelte';
-import { connectRoom, createRoom, setApiBase } from '$lib/game/client';
+import { apiBase, connectRoom, createRoom, setApiBase } from '$lib/game/client';
 import { ruleDescriptions } from '$lib/game/engine';
 import type { Card, PublicRoomState, RuleSettings } from '$lib/game/types';
 
@@ -41,11 +41,13 @@ async function handleCreateRoom() {
 function connect() {
 	error = '';
 	if (apiBaseInput.trim()) setApiBase(apiBaseInput.trim());
+	const normalizedRoomId = roomId.trim().toLowerCase();
+	roomId = normalizedRoomId;
 	client?.close();
 	client = connectRoom({
-		roomId: roomId.trim().toLowerCase(),
+		roomId: normalizedRoomId,
 		name,
-		playerId: localStorage.getItem(`daihugou:${roomId}:playerId`) ?? undefined,
+		playerId: localStorage.getItem(`daihugou:${normalizedRoomId}:playerId`) ?? undefined,
 		onState(next) {
 			state = next;
 			selected = new Set(
@@ -54,7 +56,7 @@ function connect() {
 		},
 		onJoined(nextPlayerId) {
 			playerId = nextPlayerId;
-			localStorage.setItem(`daihugou:${roomId}:playerId`, nextPlayerId);
+			localStorage.setItem(`daihugou:${normalizedRoomId}:playerId`, nextPlayerId);
 		},
 		onError(message) {
 			error = message;
@@ -77,6 +79,10 @@ function play() {
 function pass() {
 	client?.send({ type: 'pass' });
 }
+
+function activeApiBase() {
+	return apiBaseInput.trim() || apiBase() || '同一オリジン';
+}
 </script>
 
 <svelte:head>
@@ -85,7 +91,15 @@ function pass() {
 </svelte:head>
 
 <main class="shell">
-	<JoinPanel bind:name bind:roomId bind:apiBaseInput {error} onCreateRoom={handleCreateRoom} onConnect={connect} />
+	<JoinPanel
+		bind:name
+		bind:roomId
+		bind:apiBaseInput
+		activeApiBase={activeApiBase()}
+		{error}
+		onCreateRoom={handleCreateRoom}
+		onConnect={connect}
+	/>
 
 	{#if state}
 		<section class="game-grid">

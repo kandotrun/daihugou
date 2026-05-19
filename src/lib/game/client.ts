@@ -1,5 +1,7 @@
 import type { ClientCommand, PublicRoomState, ServerEvent } from './types';
 
+const productionApiBase = 'https://daihugou-api.softbank.workers.dev';
+
 export type RoomClient = {
 	send(command: ClientCommand): void;
 	close(): void;
@@ -7,11 +9,20 @@ export type RoomClient = {
 
 export function apiBase() {
 	if (typeof window === 'undefined') return '';
-	return localStorage.getItem('daihugou-api-base') || '';
+	return localStorage.getItem('daihugou-api-base') || defaultApiBase();
+}
+
+function defaultApiBase() {
+	if (typeof window === 'undefined') return '';
+	if (window.location.hostname === 'daihugou.pages.dev') return productionApiBase;
+	if (window.location.hostname.endsWith('.daihugou.pages.dev')) return productionApiBase;
+	return '';
 }
 
 export function setApiBase(value: string) {
-	localStorage.setItem('daihugou-api-base', value.replace(/\/$/, ''));
+	const normalized = value.trim().replace(/\/$/, '');
+	if (normalized) localStorage.setItem('daihugou-api-base', normalized);
+	else localStorage.removeItem('daihugou-api-base');
 }
 
 export async function createRoom() {

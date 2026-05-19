@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	createRoom,
 	defaultRules,
 	joinRoom,
+	markDisconnected,
 	passTurn,
 	playCards,
+	resetRoom,
+	startGame,
 	toPublicState,
 	updateRules,
 } from './engine';
@@ -54,7 +57,82 @@ function room(hands: Record<string, Card[]>, rules: Partial<RuleSettings> = {}):
 	};
 }
 
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe('room setup and public state', () => {
+	it('trims names, reuses returning players, and rejects late joins', () => {
+		const state = createRoom('r');
+
+		const first = joinRoom(state, '  Alice Alice Alice Alice Alice Alice  ');
+		const firstName = first.name;
+		const returning = joinRoom(state, ' Alice again ', first.id);
+		joinRoom(state, 'Bob');
+		state.phase = 'playing';
+
+		expect(firstName).toHaveLength(23);
+		expect(firstName).toBe('Alice Alice Alice Alice');
+		expect(returning.id).toBe(first.id);
+		expect(returning.name).toBe('Alice again');
+		expect(state.players).toHaveLength(2);
+		expect(() => joinRoom(state, 'Carol')).toThrow(/途中参加/);
+	});
+
+	it('marks disconnected players and restores them through join', () => {
+		const state = createRoom('r');
+		const player = joinRoom(state, 'Alice');
+
+		markDisconnected(state, player.id);
+		expect(state.players[0].connected).toBe(false);
+
+		const returning = joinRoom(state, 'Alice', player.id);
+		expect(returning.connected).toBe(true);
+		expect(state.players).toHaveLength(1);
+	});
+
+	it('starts with enough decks, deals every card, and lets diamond three act first', () => {
+		vi.spyOn(Math, 'random').mockReturnValue(0);
+		const state = createRoom('r');
+		for (let index = 0; index < 9; index += 1) joinRoom(state, `p${index + 1}`);
+
+		startGame(state);
+
+		const totalCards = Object.values(state.hands).reduce((total, hand) => total + hand.length, 0);
+		const startingPlayer = state.players.find((player) => player.id === state.turnPlayerId);
+
+		expect(state.phase).toBe('playing');
+		expect(state.decks).toBe(2);
+		expect(totalCards).toBe(108);
+		expect(
+			Object.values(state.hands)
+				.map((hand) => hand.length)
+				.sort((a, b) => b - a),
+		).toEqual([12, 12, 12, 12, 12, 12, 12, 12, 12]);
+		expect(state.hands[state.turnPlayerId ?? '']).toContainEqual(
+			expect.objectContaining({ rank: 3, suit: 'diamonds' }),
+		);
+		expect(startingPlayer).toBeDefined();
+	});
+
+	it('resets a finished room while preserving players and rule choices', () => {
+		const state = createRoom('r');
+		const first = joinRoom(state, 'Alice');
+		joinRoom(state, 'Bob');
+		updateRules(state, { reverse9: false });
+		state.phase = 'finished';
+		state.winners = [first.id];
+		state.hands[first.id] = [card(3)];
+
+		resetRoom(state);
+
+		expect(state.phase).toBe('lobby');
+		expect(state.players.map((player) => player.name)).toEqual(['Alice', 'Bob']);
+		expect(state.rules.reverse9).toBe(false);
+		expect(state.winners).toEqual([]);
+		expect(state.hands).toEqual({ [state.players[0].id]: [], [state.players[1].id]: [] });
+	});
+
 	it('updates lobby rules and freezes them after start', () => {
 		const state = createRoom('r');
 		joinRoom(state, 'a');
@@ -77,6 +155,32 @@ describe('room setup and public state', () => {
 		expect(publicState.handCounts).toEqual({ p1: 2, p2: 2 });
 		expect(publicState.me?.hand.map((ownedCard) => ownedCard.id)).toEqual(['spades-3', 'spades-4']);
 		expect(JSON.stringify(publicState)).not.toContain('spades-10');
+	});
+});
+
+describe('play validation', () => {
+	it('rejects empty plays, missing cards, early passes, and non-turn actions', () => {
+		const state = room({ p1: [card(4)], p2: [card(6)] });
+
+		expect(() => playCards(state, 'p1', [])).toThrow(/選んで/);
+		expect(() => playCards(state, 'p1', ['spades-10'])).toThrow(/手札/);
+		expect(() => passTurn(state, 'p1')).toThrow(/場が空/);
+		expect(() => playCards(state, 'p2', ['spades-6'])).toThrow(/番/);
+	});
+
+	it('rejects mismatched combinations and weaker plays', () => {
+		const state = room({
+			p1: [card(6), card(6, 'hearts')],
+			p2: [card(7), card(8)],
+			p3: [card(9), card(9, 'hearts')],
+		});
+
+		playCards(state, 'p1', ['spades-6', 'hearts-6']);
+
+		expect(() => playCards(state, 'p2', ['spades-7'])).toThrow(/同じ種類/);
+		expect(() => playCards(state, 'p2', ['spades-7', 'spades-8'])).toThrow(/同じ数字|階段/);
+		state.turnPlayerId = 'p3';
+		expect(() => playCards(state, 'p3', ['spades-9', 'hearts-9'])).not.toThrow();
 	});
 });
 

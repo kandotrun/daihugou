@@ -1,5 +1,6 @@
 name = "daihugou-api"
 main = "src/worker.ts"
+account_id = "ba88a8b00eb7e0bfe9a8f00e8eb83d56"
 compatibility_date = "2026-05-19"
 compatibility_flags = ["nodejs_compat"]
 
@@ -16,5 +17,5 @@ new_sqlite_classes = ["DaihugouRoom"]
 
 [[kv_namespaces]]
 binding = "ROOM_INDEX"
-id = "replace-with-production-kv-id"
-preview_id = "replace-with-preview-kv-id"
+id = "7ce01e28423248cfa2305492e08d750d"
+preview_id = "ca1d6755dab34ec18abedd6180d445a1"
