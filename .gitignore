@@ -1,6 +1,9 @@
 node_modules
-dist
+.svelte-kit
+build
 .wrangler
-.dev.vars
 .env
+.env.*
+!.env.example
 .DS_Store
+npm-debug.log*

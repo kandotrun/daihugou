@@ -1,32 +1,36 @@
 {
-  "name": "daihugou",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "dev:worker": "wrangler dev",
-    "build": "npm run typecheck && vite build && esbuild src/worker.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/worker/index.js",
-    "check": "biome check . && npm run typecheck && npm test -- --run && npm run build",
-    "format": "biome check --write .",
-    "test": "vitest",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "react-router": "latest"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "latest",
-    "@cloudflare/workers-types": "latest",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "esbuild": "latest",
-    "typescript": "latest",
-    "vite": "latest",
-    "vitest": "latest",
-    "wrangler": "latest"
-  }
+	"name": "daihugou",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"dev:worker": "wrangler dev --local --port 8787",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "npm run format:check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.worker.json --noEmit",
+		"format": "biome check --write .",
+		"format:check": "biome check .",
+		"deploy:pages": "npm run build && wrangler pages deploy build --project-name daihugou",
+		"deploy:worker": "wrangler deploy"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.15",
+		"@cloudflare/workers-types": "^4.20260519.1",
+		"@sveltejs/adapter-cloudflare": "^7.2.8",
+		"@sveltejs/adapter-static": "^3.0.10",
+		"@sveltejs/kit": "^2.57.0",
+		"@sveltejs/vite-plugin-svelte": "^7.0.0",
+		"@types/node": "^25.9.0",
+		"svelte": "^5.55.2",
+		"svelte-check": "^4.4.6",
+		"typescript": "^6.0.2",
+		"vite": "^8.0.7",
+		"wrangler": "^4.92.0"
+	},
+	"dependencies": {
+		"clsx": "^2.1.1",
+		"hono": "^4.12.19",
+		"nanoid": "^5.1.11"
+	}
 }

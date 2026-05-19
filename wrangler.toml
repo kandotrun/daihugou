@@ -1,0 +1,20 @@
+name = "daihugou-api"
+main = "src/worker.ts"
+compatibility_date = "2026-05-19"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "DaihugouRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DaihugouRoom"]
+
+[[kv_namespaces]]
+binding = "ROOM_INDEX"
+id = "replace-with-production-kv-id"
+preview_id = "replace-with-preview-kv-id"

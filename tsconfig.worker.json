@@ -1,0 +1,10 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"types": ["@cloudflare/workers-types"],
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"noEmit": true
+	},
+	"include": ["src/worker.ts", "src/lib/server/**/*.ts", "src/lib/game/**/*.ts"]
+}
