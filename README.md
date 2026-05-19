@@ -1,45 +1,60 @@
-# Daihugou
+# 大富豪 Online
 
-人数無制限寄りの「大富豪」Web アプリ MVP です。公開リポジトリ前提で、秘密情報や private な設定は含めていません。
+多人数で遊べる大富豪（President / Daifugō）の Web MVP です。公開リポジトリ前提で、秘密情報を含めない構成にしています。
 
 ## Stack
 
-- React + React Router 7 + Vite
-- Cloudflare Workers + Durable Objects（ルームごとのリアルタイム状態）
-- TypeScript
-- Biome（formatter/linter）
-- Vitest（カード/ゲームロジックのユニットテスト）
+- UI: SvelteKit + Svelte 5（静的ビルド / Cloudflare Pages 想定）
+- API: Hono on Cloudflare Workers
+- Realtime state: Cloudflare Durable Objects + WebSocket
+- Room index: Cloudflare KV（24h TTL の軽い索引）
+- Formatter / linter: Biome
+
+## MVP rules
+
+- 2人以上で開始
+- 人数に応じてデッキ数を自動増加（8人ごとに1デッキ）
+- 同じ数字の複数枚出し
+- 場と同じ枚数で、通常時はより強い数字、革命中はより弱い数字
+- 8切り
+- 4枚以上で革命 / 革命返し
+- 全員パスで場流れ
+- 手札がなくなった順に順位確定
+
+未対応（今後候補）: 階段、縛り、スペ3返し、都落ち、階級とカード交換、細かいローカルルール設定。
 
 ## Local development
 
 ```bash
 npm install
+npm run dev:worker
 npm run dev
 ```
 
-Worker/Durable Object を含めて確認する場合:
+UI で `API Base` に `http://127.0.0.1:8787`（ポートを変えた場合はその値）を入れて部屋を作成してください。
+
+## Checks
 
 ```bash
+npm run format
+npm run check
 npm run build
-npm run dev:worker
+npx wrangler deploy --dry-run --outdir .wrangler/dry-run
 ```
 
-## Deploy
+## Cloudflare setup
 
-Cloudflare にログイン後:
+1. KV namespace を作成して `wrangler.toml` の `ROOM_INDEX` に本番/preview ID を入れる
+2. Worker API を deploy
 
 ```bash
-npx wrangler deploy
+npm run deploy:worker
 ```
 
-初回デプロイ前に `wrangler.jsonc` の `name` や compatibility date を必要に応じて確認してください。
+3. Pages project を作成し、UI を deploy
 
-## Game notes
+```bash
+npm run deploy:pages
+```
 
-- 1 ルームに任意人数が参加できます（実運用上の上限は Worker/Durable Object/WebSocket の制約に依存）。
-- MVP ルール: 通常の 52 枚 + Joker 1 枚、3 が最弱、2 が最強、Joker は単体最強。
-- 同じ枚数・同じランクのカードだけを出せます。
-- 場のカードより強い組だけ出せます。
-- 全員が pass したら場が流れ、最後に出したプレイヤーから再開します。
-
-今後入れやすい拡張: 革命、8 切り、縛り、都落ち、階段、複数 Joker、観戦専用参加。
+Pages と Worker を同一ドメイン配下に置かない場合は、UI の `API Base` に Worker の URL を設定してください。CORS は MVP 用に `*` 許可にしています。
