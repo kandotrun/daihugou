@@ -9,6 +9,7 @@ import {
 	resetRoom,
 	startGame,
 	toPublicState,
+	updateRules,
 } from '$lib/game/engine';
 import type { ClientCommand, RoomState, ServerEvent } from '$lib/game/types';
 
@@ -84,6 +85,9 @@ export class DaihugouRoom implements DurableObject {
 					break;
 				case 'reset':
 					resetRoom(state);
+					break;
+				case 'updateRules':
+					updateRules(state, command.rules);
 					break;
 			}
 			await this.persist();
