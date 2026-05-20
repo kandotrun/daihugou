@@ -7,7 +7,7 @@
 		"dev": "vite dev",
 		"dev:worker": "wrangler dev --local --port 8787",
 		"build": "vite build",
-		"ci": "npm run check && npm run audit:prod && npm run build && npm run deploy:worker -- --dry-run --outdir .wrangler/dry-run",
+		"ci": "npm run check && npm run test:e2e && npm run audit:prod && npm run build && npm run deploy:worker -- --dry-run --outdir .wrangler/dry-run",
 		"preview": "vite preview",
 		"check": "npm run format:check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.worker.json --noEmit && npm test",
 		"format": "biome check --write .",
@@ -15,11 +15,13 @@
 		"audit:prod": "npm audit --omit=dev",
 		"deploy:pages": "npm run build && wrangler pages deploy build --project-name daihugou",
 		"deploy:worker": "svelte-kit sync && wrangler deploy",
-		"test": "vitest run"
+		"test": "vitest run",
+		"test:e2e": "playwright test"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
 		"@cloudflare/workers-types": "^4.20260519.1",
+		"@playwright/test": "^1.60.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.8",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.57.0",
@@ -29,8 +31,8 @@
 		"svelte-check": "^4.4.6",
 		"typescript": "^6.0.2",
 		"vite": "^8.0.7",
-		"wrangler": "^4.92.0",
-		"vitest": "^4.1.6"
+		"vitest": "^4.1.6",
+		"wrangler": "^4.92.0"
 	},
 	"dependencies": {
 		"clsx": "^2.1.1",
