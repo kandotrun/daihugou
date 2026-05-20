@@ -5,6 +5,7 @@ import type { PublicRoomState } from '$lib/game/types';
 export let state: PublicRoomState;
 export let selectedCount: number;
 export let isMyTurn: boolean;
+export let isHost: boolean;
 export let onStart: () => void;
 export let onPlay: () => void;
 export let onPass: () => void;
@@ -46,13 +47,13 @@ const lockLabel = () => state.pile?.lockSuits.map((suit) => suitMarks[suit]).joi
 
 	<div class="controls">
 		{#if state.phase === 'lobby'}
-			<button class="primary" on:click={onStart} disabled={state.players.length < 2}>開始</button>
+			<button class="primary" on:click={onStart} disabled={state.players.length < 2 || !isHost}>開始</button>
 		{:else if state.phase === 'playing'}
 			<strong>{currentPlayer()?.name ?? '誰か'} の番</strong>
 			<button class="primary" on:click={onPlay} disabled={!isMyTurn || selectedCount === 0}>出す</button>
 			<button on:click={onPass} disabled={!isMyTurn || !state.pile}>パス</button>
 		{:else}
-			<button class="primary" on:click={onReset}>次のラウンドへ</button>
+			<button class="primary" on:click={onReset} disabled={!isHost}>次のラウンドへ</button>
 		{/if}
 	</div>
 </div>

@@ -11,6 +11,7 @@ function env() {
 	const durableRequests: Request[] = [];
 	const idNames: string[] = [];
 	const kvPuts: KvPutCall[] = [];
+	const kvValues = new Map<string, string>();
 	const durableId = { toString: () => 'durable-id' } as DurableObjectId;
 	const stub = {
 		fetch(input: RequestInfo | URL, init?: RequestInit) {
@@ -30,12 +31,16 @@ function env() {
 		},
 	} as unknown as DurableObjectNamespace;
 	const kv = {
+		get(key: string) {
+			return Promise.resolve(kvValues.get(key) ?? null);
+		},
 		put(key: string, value: string, options?: KVNamespacePutOptions) {
 			kvPuts.push({ key, value, options });
+			kvValues.set(key, value);
 			return Promise.resolve();
 		},
 	} as unknown as KVNamespace;
-	return { bindings: { ROOMS: rooms, ROOM_INDEX: kv }, durableRequests, idNames, kvPuts };
+	return { bindings: { ROOMS: rooms, ROOM_INDEX: kv }, durableRequests, idNames, kvPuts, kvValues };
 }
 
 describe('worker routes', () => {
@@ -43,9 +48,18 @@ describe('worker routes', () => {
 		const health = await app.request('/health');
 		await expect(health.json()).resolves.toEqual({ ok: true, service: 'daihugou-api' });
 
-		const options = await app.request('/api/rooms', { method: 'OPTIONS' });
+		const options = await app.request('/api/rooms', {
+			method: 'OPTIONS',
+			headers: { Origin: 'https://daihugou.pages.dev' },
+		});
 		expect(options.status).toBe(204);
-		expect(options.headers.get('access-control-allow-origin')).toBe('*');
+		expect(options.headers.get('access-control-allow-origin')).toBe('https://daihugou.pages.dev');
+
+		const blocked = await app.request('/api/rooms', {
+			method: 'OPTIONS',
+			headers: { Origin: 'https://example.com' },
+		});
+		expect(blocked.headers.get('access-control-allow-origin')).toBeNull();
 	});
 
 	it('creates a room through Durable Objects and indexes it in KV', async () => {
@@ -66,18 +80,46 @@ describe('worker routes', () => {
 
 	it('forwards state and socket requests to the room Durable Object', async () => {
 		const stateEnv = env();
-		const stateResponse = await app.request('/api/rooms/room-a/state', {}, stateEnv.bindings);
+		stateEnv.kvValues.set('rooma123', JSON.stringify({ roomId: 'rooma123' }));
+		const stateResponse = await app.request('/api/rooms/rooma123/state', {}, stateEnv.bindings);
 
 		expect(stateResponse.status).toBe(200);
-		expect(stateEnv.idNames).toEqual(['room-a']);
-		expect(stateEnv.durableRequests[0].headers.get('x-room-id')).toBe('room-a');
+		expect(stateEnv.idNames).toEqual(['rooma123']);
+		expect(stateEnv.durableRequests[0].headers.get('x-room-id')).toBe('rooma123');
 		expect(new URL(stateEnv.durableRequests[0].url).pathname).toBe('/state');
 
 		const socketEnv = env();
-		await app.request('/api/rooms/room-b/socket', {}, socketEnv.bindings);
+		socketEnv.kvValues.set('roomb123', JSON.stringify({ roomId: 'roomb123' }));
+		await app.request(
+			'/api/rooms/roomb123/socket',
+			{ headers: { Origin: 'https://daihugou.pages.dev' } },
+			socketEnv.bindings,
+		);
 
-		expect(socketEnv.idNames).toEqual(['room-b']);
-		expect(new URL(socketEnv.durableRequests[0].url).pathname).toBe('/api/rooms/room-b/socket');
+		expect(socketEnv.idNames).toEqual(['roomb123']);
+		expect(new URL(socketEnv.durableRequests[0].url).pathname).toBe('/api/rooms/roomb123/socket');
+	});
+
+	it('rejects invalid, unknown, and disallowed room access', async () => {
+		const invalidEnv = env();
+		const invalid = await app.request('/api/rooms/not-valid-room/state', {}, invalidEnv.bindings);
+		expect(invalid.status).toBe(400);
+		await expect(invalid.json()).resolves.toEqual({ error: 'Invalid room id' });
+
+		const unknownEnv = env();
+		const unknown = await app.request('/api/rooms/rooma123/state', {}, unknownEnv.bindings);
+		expect(unknown.status).toBe(404);
+		await expect(unknown.json()).resolves.toEqual({ error: 'Room not found' });
+
+		const originEnv = env();
+		originEnv.kvValues.set('roomb123', JSON.stringify({ roomId: 'roomb123' }));
+		const blocked = await app.request(
+			'/api/rooms/roomb123/socket',
+			{ headers: { Origin: 'https://example.com' } },
+			originEnv.bindings,
+		);
+		expect(blocked.status).toBe(403);
+		await expect(blocked.json()).resolves.toEqual({ error: 'Origin not allowed' });
 	});
 
 	it('returns JSON for unknown routes', async () => {

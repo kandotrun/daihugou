@@ -94,11 +94,12 @@ describe('apiBase', () => {
 			roomId: 'AbC123',
 			name: 'Kan',
 			playerId: 'returning',
+			token: 'secret-token',
 			onState(next) {
 				states.push(next.id);
 			},
-			onJoined(nextPlayerId) {
-				joined.push(nextPlayerId);
+			onJoined(nextPlayerId, nextToken) {
+				joined.push(`${nextPlayerId}:${nextToken}`);
 			},
 			onError(message) {
 				errors.push(message);
@@ -107,10 +108,15 @@ describe('apiBase', () => {
 
 		expect(sockets).toHaveLength(1);
 		expect(sockets[0].url).toBe(
-			'wss://daihugou-api.softbank.workers.dev/api/rooms/AbC123/socket?name=Kan&playerId=returning',
+			'wss://daihugou-api.softbank.workers.dev/api/rooms/AbC123/socket?name=Kan&playerId=returning&token=secret-token',
 		);
 
-		sockets[0].emitMessage({ type: 'joined', playerId: 'new-id', roomId: 'AbC123' });
+		sockets[0].emitMessage({
+			type: 'joined',
+			playerId: 'new-id',
+			token: 'new-token',
+			roomId: 'AbC123',
+		});
 		sockets[0].emitMessage({
 			type: 'state',
 			state: {
@@ -141,13 +147,14 @@ describe('apiBase', () => {
 			},
 		});
 		sockets[0].emitMessage({ type: 'error', message: 'bad move' });
+		sockets[0].emitRaw('not json');
 		client.send({ type: 'start' });
 		sockets[0].readyState = TestWebSocket.CLOSED;
 		client.send({ type: 'pass' });
 
-		expect(joined).toEqual(['new-id']);
+		expect(joined).toEqual(['new-id:new-token']);
 		expect(states).toEqual(['AbC123']);
-		expect(errors).toEqual(['bad move']);
+		expect(errors).toEqual(['bad move', 'サーバーから不正なデータを受信しました']);
 		expect(sockets[0].sent).toEqual([JSON.stringify({ type: 'start' })]);
 		client.close();
 		expect(sockets[0].readyState).toBe(TestWebSocket.CLOSED);
@@ -179,7 +186,11 @@ class TestWebSocket {
 	}
 
 	emitMessage(data: unknown) {
-		const event = { data: JSON.stringify(data) } as MessageEvent<string>;
+		this.emitRaw(JSON.stringify(data));
+	}
+
+	emitRaw(data: string) {
+		const event = { data } as MessageEvent<string>;
 		for (const listener of this.listeners.get('message') ?? []) listener(event);
 	}
 }

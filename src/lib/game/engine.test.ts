@@ -41,7 +41,14 @@ function room(hands: Record<string, Card[]>, rules: Partial<RuleSettings> = {}):
 	return {
 		id: 'room',
 		phase: 'playing',
-		players: ids.map((id) => ({ id, name: id, connected: true, joinedAt: 1 })),
+		players: ids.map((id, index) => ({
+			id,
+			token: `${id}-token`,
+			name: id,
+			connected: true,
+			joinedAt: 1,
+			host: index === 0,
+		})),
 		hands,
 		turnPlayerId: ids[0],
 		passes: [],
@@ -67,7 +74,7 @@ describe('room setup and public state', () => {
 
 		const first = joinRoom(state, '  Alice Alice Alice Alice Alice Alice  ');
 		const firstName = first.name;
-		const returning = joinRoom(state, ' Alice again ', first.id);
+		const returning = joinRoom(state, ' Alice again ', { playerId: first.id, token: first.token });
 		joinRoom(state, 'Bob');
 		state.phase = 'playing';
 
@@ -76,6 +83,9 @@ describe('room setup and public state', () => {
 		expect(returning.id).toBe(first.id);
 		expect(returning.name).toBe('Alice again');
 		expect(state.players).toHaveLength(2);
+		expect(() => joinRoom(state, 'Mallory', { playerId: first.id, token: 'wrong' })).toThrow(
+			/トークン/,
+		);
 		expect(() => joinRoom(state, 'Carol')).toThrow(/途中参加/);
 	});
 
@@ -86,7 +96,7 @@ describe('room setup and public state', () => {
 		markDisconnected(state, player.id);
 		expect(state.players[0].connected).toBe(false);
 
-		const returning = joinRoom(state, 'Alice', player.id);
+		const returning = joinRoom(state, 'Alice', { playerId: player.id, token: player.token });
 		expect(returning.connected).toBe(true);
 		expect(state.players).toHaveLength(1);
 	});
@@ -128,6 +138,8 @@ describe('room setup and public state', () => {
 
 		expect(state.phase).toBe('lobby');
 		expect(state.players.map((player) => player.name)).toEqual(['Alice', 'Bob']);
+		expect(state.players[0].token).toBe(first.token);
+		expect(state.players[0].host).toBe(true);
 		expect(state.rules.reverse9).toBe(false);
 		expect(state.winners).toEqual([]);
 		expect(state.hands).toEqual({ [state.players[0].id]: [], [state.players[1].id]: [] });
@@ -152,9 +164,11 @@ describe('room setup and public state', () => {
 		const publicState = toPublicState(state, 'p1');
 
 		expect('hands' in publicState).toBe(false);
+		expect('token' in publicState.players[0]).toBe(false);
 		expect(publicState.handCounts).toEqual({ p1: 2, p2: 2 });
 		expect(publicState.me?.hand.map((ownedCard) => ownedCard.id)).toEqual(['spades-3', 'spades-4']);
 		expect(JSON.stringify(publicState)).not.toContain('spades-10');
+		expect(JSON.stringify(publicState)).not.toContain('p1-token');
 	});
 });
 
@@ -164,6 +178,7 @@ describe('play validation', () => {
 
 		expect(() => playCards(state, 'p1', [])).toThrow(/選んで/);
 		expect(() => playCards(state, 'p1', ['spades-10'])).toThrow(/手札/);
+		expect(() => playCards(state, 'p1', ['spades-4', 'spades-4'])).toThrow(/同じカード/);
 		expect(() => passTurn(state, 'p1')).toThrow(/場が空/);
 		expect(() => playCards(state, 'p2', ['spades-6'])).toThrow(/番/);
 	});
@@ -289,5 +304,11 @@ describe('special rule effects', () => {
 		const state = room({ p1: [card(8)], p2: [card(9)] });
 
 		expect(() => playCards(state, 'p1', ['spades-8'])).toThrow(/反則/);
+	});
+
+	it('does not reset an active game', () => {
+		const state = room({ p1: [card(4)], p2: [card(6)] });
+
+		expect(() => resetRoom(state)).toThrow(/終了後/);
 	});
 });

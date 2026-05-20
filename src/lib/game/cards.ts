@@ -74,8 +74,19 @@ export function createDeck(decks: number): Card[] {
 export function shuffle<T>(items: T[]): T[] {
 	const copy = [...items];
 	for (let i = copy.length - 1; i > 0; i -= 1) {
-		const j = Math.floor(Math.random() * (i + 1));
+		const j = randomIndex(i + 1);
 		[copy[i], copy[j]] = [copy[j], copy[i]];
 	}
 	return copy;
+}
+
+function randomIndex(maxExclusive: number) {
+	const crypto = globalThis.crypto;
+	if (!crypto) return Math.floor(Math.random() * maxExclusive);
+	const values = new Uint32Array(1);
+	const limit = Math.floor(0x1_0000_0000 / maxExclusive) * maxExclusive;
+	do {
+		crypto.getRandomValues(values);
+	} while (values[0] >= limit);
+	return values[0] % maxExclusive;
 }

@@ -11,7 +11,7 @@ import {
 	toPublicState,
 	updateRules,
 } from '../game/engine';
-import type { ClientCommand, RoomState, ServerEvent } from '../game/types';
+import type { ClientCommand, RoomState, RuleSettings, ServerEvent } from '../game/types';
 
 type Connection = {
 	ws: WebSocket;
@@ -46,11 +46,12 @@ export class DaihugouRoom implements DurableObject {
 		this.connections.add(connection);
 		const name = url.searchParams.get('name');
 		const playerId = url.searchParams.get('playerId') ?? undefined;
-		if (name) void this.handle(connection, { type: 'join', name, playerId });
+		const token = url.searchParams.get('token') ?? undefined;
+		if (name) void this.handle(connection, { type: 'join', name, playerId, token });
 		else void this.sendCurrentState(connection);
 		ws.addEventListener('message', (event) => {
 			try {
-				void this.handle(connection, JSON.parse(String(event.data)) as ClientCommand);
+				void this.handle(connection, parseClientCommand(String(event.data)));
 			} catch (error) {
 				this.send(connection, {
 					type: 'error',
@@ -67,14 +68,24 @@ export class DaihugouRoom implements DurableObject {
 		try {
 			switch (command.type) {
 				case 'join': {
-					const player = joinRoom(state, command.name, command.playerId);
+					const player = joinRoom(state, command.name, {
+						playerId: command.playerId,
+						token: command.token,
+					});
 					connection.playerId = player.id;
-					this.send(connection, { type: 'joined', playerId: player.id, roomId: state.id });
+					this.send(connection, {
+						type: 'joined',
+						playerId: player.id,
+						token: player.token,
+						roomId: state.id,
+					});
 					break;
 				}
-				case 'start':
+				case 'start': {
+					this.assertHost(state, this.requirePlayer(connection));
 					startGame(state);
 					break;
+				}
 				case 'play':
 					if (!connection.playerId) throw new Error('先に参加してください');
 					playCards(state, connection.playerId, command.cardIds);
@@ -83,10 +94,13 @@ export class DaihugouRoom implements DurableObject {
 					if (!connection.playerId) throw new Error('先に参加してください');
 					passTurn(state, connection.playerId);
 					break;
-				case 'reset':
+				case 'reset': {
+					this.assertHost(state, this.requirePlayer(connection));
 					resetRoom(state);
 					break;
+				}
 				case 'updateRules':
+					this.assertHost(state, this.requirePlayer(connection));
 					updateRules(state, command.rules);
 					break;
 			}
@@ -152,4 +166,67 @@ export class DaihugouRoom implements DurableObject {
 		const state = await this.getState();
 		await this.durableState.storage.put('room', state);
 	}
+
+	private requirePlayer(connection: Connection) {
+		if (!connection.playerId) throw new Error('先に参加してください');
+		return connection.playerId;
+	}
+
+	private assertHost(state: RoomState, playerId: string) {
+		if (!state.players.find((player) => player.id === playerId)?.host) {
+			throw new Error('ホストのみ操作できます');
+		}
+	}
+}
+
+const ruleKeys = [
+	'sequence',
+	'suitLock',
+	'eightCut',
+	'revolution',
+	'elevenBack',
+	'spade3BeatsJoker',
+	'forbiddenFinish',
+	'skip5',
+	'reverse9',
+] satisfies (keyof RuleSettings)[];
+
+function parseClientCommand(data: string): ClientCommand {
+	const parsed = JSON.parse(data) as unknown;
+	if (!isClientCommand(parsed)) throw new Error('不正なコマンドです');
+	return parsed;
+}
+
+function isClientCommand(value: unknown): value is ClientCommand {
+	if (!isRecord(value) || typeof value.type !== 'string') return false;
+	switch (value.type) {
+		case 'join':
+			return (
+				typeof value.name === 'string' &&
+				(value.playerId === undefined || typeof value.playerId === 'string') &&
+				(value.token === undefined || typeof value.token === 'string')
+			);
+		case 'start':
+		case 'pass':
+		case 'reset':
+			return true;
+		case 'play':
+			return Array.isArray(value.cardIds) && value.cardIds.every((id) => typeof id === 'string');
+		case 'updateRules':
+			return isRulePatch(value.rules);
+		default:
+			return false;
+	}
+}
+
+function isRulePatch(value: unknown): value is Partial<RuleSettings> {
+	if (!isRecord(value)) return false;
+	return Object.entries(value).every(
+		([key, checked]) =>
+			ruleKeys.includes(key as keyof RuleSettings) && typeof checked === 'boolean',
+	);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
 }

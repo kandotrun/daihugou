@@ -12,9 +12,11 @@ export type Card = {
 
 export type Player = {
 	id: string;
+	token: string;
 	name: string;
 	connected: boolean;
 	joinedAt: number;
+	host?: boolean;
 	finishedAt?: number;
 };
 
@@ -76,7 +78,10 @@ export type GameLogEntry = {
 	at: number;
 };
 
-export type PublicRoomState = Omit<RoomState, 'hands'> & {
+export type PublicPlayer = Omit<Player, 'token'>;
+
+export type PublicRoomState = Omit<RoomState, 'hands' | 'players'> & {
+	players: PublicPlayer[];
 	handCounts: Record<string, number>;
 	me?: {
 		playerId: string;
@@ -85,7 +90,7 @@ export type PublicRoomState = Omit<RoomState, 'hands'> & {
 };
 
 export type ClientCommand =
-	| { type: 'join'; name: string; playerId?: string }
+	| { type: 'join'; name: string; playerId?: string; token?: string }
 	| { type: 'start' }
 	| { type: 'play'; cardIds: string[] }
 	| { type: 'pass' }
@@ -94,5 +99,5 @@ export type ClientCommand =
 
 export type ServerEvent =
 	| { type: 'state'; state: PublicRoomState }
-	| { type: 'joined'; playerId: string; roomId: string }
+	| { type: 'joined'; playerId: string; token: string; roomId: string }
 	| { type: 'error'; message: string };

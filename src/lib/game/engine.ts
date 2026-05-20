@@ -4,6 +4,7 @@ import type {
 	Card,
 	Combination,
 	Player,
+	PublicPlayer,
 	PublicRoomState,
 	Rank,
 	RoomState,
@@ -62,9 +63,10 @@ export function toPublicState(state: RoomState, viewerId?: string): PublicRoomSt
 	const handCounts = Object.fromEntries(
 		state.players.map((player) => [player.id, state.hands[player.id]?.length ?? 0]),
 	);
-	const { hands: _privateHands, ...publicState } = state;
+	const { hands: _privateHands, players: _privatePlayers, ...publicState } = state;
 	return {
 		...publicState,
+		players: state.players.map(toPublicPlayer),
 		handCounts,
 		me: viewerId
 			? {
@@ -83,13 +85,20 @@ export function updateRules(state: RoomState, rules: Partial<RuleSettings>) {
 	pushLog(state, 'ルール設定を更新しました');
 }
 
-export function joinRoom(state: RoomState, name: string, requestedPlayerId?: string): Player {
+export function joinRoom(
+	state: RoomState,
+	name: string,
+	credentials: { playerId?: string; token?: string } = {},
+): Player {
 	migrateState(state);
 	const trimmed = name.trim().slice(0, 24).trim() || '名無し';
-	const returning = requestedPlayerId
-		? state.players.find((player) => player.id === requestedPlayerId)
+	const returning = credentials.playerId
+		? state.players.find((player) => player.id === credentials.playerId)
 		: undefined;
 	if (returning) {
+		if (!credentials.token || returning.token !== credentials.token) {
+			throw new Error('再参加トークンが一致しません');
+		}
 		returning.name = trimmed;
 		returning.connected = true;
 		state.updatedAt = Date.now();
@@ -97,7 +106,14 @@ export function joinRoom(state: RoomState, name: string, requestedPlayerId?: str
 		return returning;
 	}
 	if (state.phase !== 'lobby') throw new Error('ゲーム開始後の途中参加は次のラウンドからです');
-	const player: Player = { id: nanoid(10), name: trimmed, connected: true, joinedAt: Date.now() };
+	const player: Player = {
+		id: nanoid(10),
+		token: nanoid(32),
+		name: trimmed,
+		connected: true,
+		joinedAt: Date.now(),
+		host: state.players.length === 0,
+	};
 	state.players.push(player);
 	state.hands[player.id] = [];
 	state.updatedAt = Date.now();
@@ -139,6 +155,7 @@ export function startGame(state: RoomState) {
 export function playCards(state: RoomState, playerId: string, cardIds: string[]) {
 	migrateState(state);
 	assertTurn(state, playerId);
+	if (new Set(cardIds).size !== cardIds.length) throw new Error('同じカードは複数回選べません');
 	const hand = state.hands[playerId] ?? [];
 	const cards = cardIds.map((id) => hand.find((card) => card.id === id));
 	if (cards.some((card) => !card)) throw new Error('手札にないカードが含まれています');
@@ -191,14 +208,17 @@ export function passTurn(state: RoomState, playerId: string) {
 
 export function resetRoom(state: RoomState) {
 	migrateState(state);
+	if (state.phase !== 'finished') throw new Error('リセットはゲーム終了後のみ可能です');
 	const rules = { ...state.rules };
 	const fresh = createRoom(state.id);
 	fresh.rules = rules;
 	fresh.players = state.players.map((player) => ({
 		id: player.id,
+		token: player.token,
 		name: player.name,
 		connected: player.connected,
 		joinedAt: player.joinedAt,
+		host: player.host,
 	}));
 	fresh.hands = Object.fromEntries(fresh.players.map((player) => [player.id, []]));
 	Object.assign(state, fresh);
@@ -417,6 +437,10 @@ function migrateState(state: RoomState) {
 	state.rules = { ...defaultRules, ...(state.rules ?? {}) };
 	state.jackBack ??= false;
 	state.turnDirection ??= 1;
+	for (const player of state.players) player.token ??= nanoid(32);
+	if (state.players.length > 0 && !state.players.some((player) => player.host)) {
+		state.players[0].host = true;
+	}
 	if (state.pile && !state.pile.combination) {
 		const combination = detectCombination(state.pile.cards, state.rules.sequence);
 		if (combination) state.pile = { ...state.pile, combination, lockSuits: [] };
@@ -425,4 +449,9 @@ function migrateState(state: RoomState) {
 
 function pushLog(state: RoomState, message: string) {
 	state.log = [{ id: nanoid(), message, at: Date.now() }, ...state.log].slice(0, 80);
+}
+
+function toPublicPlayer(player: Player): PublicPlayer {
+	const { token: _token, ...publicPlayer } = player;
+	return publicPlayer;
 }

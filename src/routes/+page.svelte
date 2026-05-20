@@ -20,9 +20,11 @@ let client: ReturnType<typeof connectRoom> | undefined;
 
 const isMyTurn = () => state?.turnPlayerId === playerId;
 const me = () => state?.players.find((player) => player.id === playerId);
+const isHost = () => me()?.host === true;
 const ruleEntries = Object.entries(ruleDescriptions) as [keyof RuleSettings, string][];
 
 function setRule(key: keyof RuleSettings, checked: boolean) {
+	if (!isHost()) return;
 	client?.send({ type: 'updateRules', rules: { [key]: checked } });
 }
 
@@ -48,15 +50,17 @@ function connect() {
 		roomId: normalizedRoomId,
 		name,
 		playerId: localStorage.getItem(`daihugou:${normalizedRoomId}:playerId`) ?? undefined,
+		token: localStorage.getItem(`daihugou:${normalizedRoomId}:token`) ?? undefined,
 		onState(next) {
 			state = next;
 			selected = new Set(
 				[...selected].filter((id) => next.me?.hand.some((card) => card.id === id)),
 			);
 		},
-		onJoined(nextPlayerId) {
+		onJoined(nextPlayerId, nextToken) {
 			playerId = nextPlayerId;
 			localStorage.setItem(`daihugou:${normalizedRoomId}:playerId`, nextPlayerId);
+			localStorage.setItem(`daihugou:${normalizedRoomId}:token`, nextToken);
 		},
 		onError(message) {
 			error = message;
@@ -107,6 +111,7 @@ function activeApiBase() {
 				{state}
 				selectedCount={selected.size}
 				isMyTurn={isMyTurn()}
+				isHost={isHost()}
 				onStart={() => client?.send({ type: 'start' })}
 				onPlay={play}
 				onPass={pass}
@@ -115,7 +120,7 @@ function activeApiBase() {
 			<PlayersPanel {state} {playerId} />
 		</section>
 
-		<RuleSettingsPanel {state} {ruleEntries} onRuleChange={setRule} />
+		<RuleSettingsPanel {state} {ruleEntries} isHost={isHost()} onRuleChange={setRule} />
 		<HandPanel hand={state.me?.hand ?? []} playerName={me()?.name ?? name} {selected} onToggle={toggle} />
 		<GameLog entries={state.log} />
 	{/if}
